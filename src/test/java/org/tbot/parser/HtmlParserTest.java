@@ -63,7 +63,7 @@ public class HtmlParserTest {
         try {
             ParsedPage page = parser.parse(readFile("test2.html"), "http://urlfrom.com");
             Assert.assertTrue(!page.getHtmlPage().isEmpty());
-            Assert.assertEquals(152, page.getOutLinks().size());
+            Assert.assertEquals(201, page.getOutLinks().size());
             Assert.assertEquals(0, page.getInLinks().size());
             Assert.assertEquals(2, page.getParsedContent().size());
 
@@ -78,8 +78,8 @@ public class HtmlParserTest {
         try {
             ParsedPage page = parser.parse(readFile("test3.html"), "http://stackoverflow.com");
             Assert.assertTrue(!page.getHtmlPage().isEmpty());
-            Assert.assertEquals(96, page.getOutLinks().size());
-            Assert.assertEquals(109, page.getInLinks().size());
+            Assert.assertEquals(97, page.getOutLinks().size());
+            Assert.assertEquals(116, page.getInLinks().size());
             Assert.assertEquals(2, page.getParsedContent().size());
 
         } catch (Exception ex) {
