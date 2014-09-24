@@ -1,6 +1,8 @@
 package org.tbot.objects;
 
 import java.util.Objects;
+import org.tbot.fetch.ProtocolType;
+import org.tbot.util.HttpUtil;
 
 /**
  *
@@ -21,19 +23,20 @@ public class Domain implements Comparable<Domain> {
     private Domain(ProtocolType protocol, String domain) {
         this.protocol = protocol;
         this.domain = domain;
+        this.metadata = new DomainMetadata();
     }
 
     public static Domain parse(String url, DomainMetadata metadata) {
-        ProtocolType p = Util.getProtocol(url);
-        String domain = Util.getDomain(url);
+        ProtocolType p = HttpUtil.getProtocol(url);
+        String domain = HttpUtil.getDomain(url);
         Domain d = new Domain(p, domain, metadata);
         return d;
 
     }
 
     public static Domain parse(String url) {
-        ProtocolType p = Util.getProtocol(url);
-        String domain = Util.getDomain(url);
+        ProtocolType p = HttpUtil.getProtocol(url);
+        String domain = HttpUtil.getDomain(url);
         Domain d = new Domain(p, domain);
         return d;
     }

@@ -1,26 +1,26 @@
 package org.tbot.entity;
 
-import org.tbot.objects.ObjectToCrawl;
 import java.net.URL;
+import org.tbot.objects.Domain;
 
 /**
  *
  */
 public abstract class CrawlEntity {
 
-    protected ObjectToCrawl head;
+    protected Domain head;
     protected URL processUrl;
 
     public URL getProcessUrl() {
         return processUrl;
     }
 
-    public CrawlEntity(ObjectToCrawl head, URL processUrl) {
+    public CrawlEntity(Domain head, URL processUrl) {
         this.head = head;
         this.processUrl = processUrl;
     }
 
-    public ObjectToCrawl getHead() {
+    public Domain getHead() {
         return head;
     }
 

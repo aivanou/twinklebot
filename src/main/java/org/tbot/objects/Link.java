@@ -19,6 +19,13 @@ public class Link implements Serializable {
         this.type = type;
     }
 
+    public Link(String from, String to) throws MalformedURLException {
+        this.from = new URL(from);
+        this.to = new URL(to);
+        this.text = "default";
+        this.type = "default";
+    }
+
     public Link(String from, String to, String text, String type) throws MalformedURLException {
         this.from = new URL(from);
         this.to = new URL(to);

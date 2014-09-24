@@ -1,7 +1,5 @@
 package org.tbot.repository;
 
-import java.util.Collection;
-
 /**
  *
  * @param <T>
@@ -9,13 +7,7 @@ import java.util.Collection;
 public interface Repository<T> {
 
     boolean insert(T object);
-
-    void batchInsert(Collection<T> objects);
-
-    void delayedInsert(T object);
-
-    T get(String id);
-
-    Collection<T> get(Collection<String> ids);
+    
+    int size();
 
 }

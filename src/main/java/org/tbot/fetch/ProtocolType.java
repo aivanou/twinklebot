@@ -4,7 +4,8 @@ public enum ProtocolType {
 
     Http("http", 200),
     Https("https", 200),
-    Ftp("ftp", 100);
+    Ftp("ftp", 100),
+    Unknown("unknown", 0);
     private final String type;
     private final int validCode;
 

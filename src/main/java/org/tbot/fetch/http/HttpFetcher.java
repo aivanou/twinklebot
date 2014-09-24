@@ -1,32 +1,46 @@
 package org.tbot.fetch.http;
 
-import java.io.FileInputStream;
+import java.io.ByteArrayOutputStream;
 import org.tbot.conf.CrawlerConfig;
 import org.tbot.fetch.ProtocolResponse;
-//import org.tbot.entity.feedback.HttpState;
-import org.tbot.loggin.LoggerCreator;
 import org.tbot.parse.ContentType;
-import org.tbot.util.StreamUtil;
-import org.apache.commons.httpclient.methods.GetMethod;
-import org.apache.commons.httpclient.params.HttpConnectionManagerParams;
-import org.apache.commons.httpclient.params.HttpMethodParams;
-import org.apache.log4j.Logger;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.MalformedURLException;
+import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.net.URL;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Level;
-import org.apache.commons.httpclient.DefaultHttpMethodRetryHandler;
-import org.apache.commons.httpclient.Header;
-import org.apache.commons.httpclient.HttpClient;
-import org.apache.commons.httpclient.MultiThreadedHttpConnectionManager;
+import java.util.logging.Logger;
+import org.apache.http.Header;
+import org.apache.http.HttpException;
+import org.apache.http.HttpHost;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.config.SocketConfig;
+import org.apache.http.impl.DefaultBHttpClientConnection;
+import org.apache.http.impl.client.DefaultRedirectStrategy;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
+import org.apache.http.message.BasicHttpRequest;
+import org.apache.http.protocol.BasicHttpContext;
+import org.apache.http.protocol.HttpContext;
+import org.apache.http.protocol.HttpCoreContext;
+import org.apache.http.protocol.HttpProcessor;
+import org.apache.http.protocol.HttpProcessorBuilder;
+import org.apache.http.protocol.HttpRequestExecutor;
+import org.apache.http.protocol.RequestConnControl;
+import org.apache.http.protocol.RequestContent;
+import org.apache.http.protocol.RequestExpectContinue;
+import org.apache.http.protocol.RequestTargetHost;
+import org.apache.http.protocol.RequestUserAgent;
 import org.tbot.fetch.ProtocolException;
-import org.tbot.fetch.ProtocolType;
 import org.tbot.fetch.ProtocolFetcher;
 import org.tbot.fetch.ProtocolOutput;
 import org.tbot.fetch.ProtocolStatus;
@@ -39,22 +53,16 @@ public class HttpFetcher extends ProtocolFetcher {
 
     private static ProtocolFetcher fetcher = null;
     private static HttpClient client = null;
-    private static MultiThreadedHttpConnectionManager mgr;
 
     public static ProtocolFetcher init(CrawlerConfig config) {
         if (fetcher != null && client != null) {
             return fetcher;
         }
-        mgr = new MultiThreadedHttpConnectionManager();
-
-        HttpConnectionManagerParams prs = new HttpConnectionManagerParams();
-        prs.setDefaultMaxConnectionsPerHost(config.CONNECTIONS_PER_HOST);
-        prs.setMaxTotalConnections(config.TOTAL_CONNECTIONS);
-        prs.setSoTimeout(config.SOCKET_TIMEOUT);
-        prs.setConnectionTimeout(config.CONNECTION_TIMEOUT);
-        prs.setStaleCheckingEnabled(true);
-        mgr.setParams(prs);
-        client = new HttpClient(mgr);
+        PoolingHttpClientConnectionManager cm = new PoolingHttpClientConnectionManager();
+        cm.setDefaultSocketConfig(SocketConfig.custom().setSoKeepAlive(true).setSoTimeout(10000).build());
+        cm.setDefaultMaxPerRoute(10);
+        cm.setMaxTotal(100);
+        client = HttpClients.custom().setRedirectStrategy(new DefaultRedirectStrategy()).setConnectionManager(cm).build();
         fetcher = new HttpFetcher();
         return fetcher;
     }
@@ -74,28 +82,35 @@ public class HttpFetcher extends ProtocolFetcher {
         path = path.trim();
 
         HttpResponse response = null;
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
         try {
-            response = getResponse(path);
+            response = getResponse(path, buffer);
         } catch (UnknownHostException ex) {
             return new ProtocolResponse(new ProtocolStatus("Unknown host: " + path, ProtocolStatus.Type.UnknownHost), null);
         } catch (IllegalStateException ex) {
             return new ProtocolResponse(new ProtocolStatus("unknown protocol: " + path, ProtocolStatus.Type.UnknownProtocol), null);
+        } catch (SocketTimeoutException ex) {
+            return new ProtocolResponse(new ProtocolStatus("socket timeout exception: " + path, ProtocolStatus.Type.UnknownError), null);
         } catch (IOException ex) {
             java.util.logging.Logger.getLogger(HttpFetcher.class.getName()).log(Level.SEVERE, null, ex);
             throw new ProtocolException(ex);
         }
-        int code = response.getCode();
+        int code = response.getStatusLine().getStatusCode();
         if (code == 200) {
-            String encoding = response.getHeader("content-encoding");
-            Map<String, String> params = parseType(response.getHeader("content-type"));
+            Header encodingHeader = response.getEntity().getContentEncoding();
+            Header contentTypeHeader = response.getEntity().getContentType();
+            Map<String, String> params = parseType(contentTypeHeader);
             ContentType ctype = ContentType.forName(params.get("type"));
-            if (encoding == null) {
+            String encoding;
+            if (encodingHeader == null) {
                 encoding = params.get("charset");
+            } else {
+                encoding = encodingHeader.getValue();
             }
             return new ProtocolResponse(new ProtocolStatus("Got page, code: 200", ProtocolStatus.Type.Valid),
-                    new ProtocolOutput(response.getContent(), encoding, ctype, path.toString()));
+                    new ProtocolOutput(ByteBuffer.wrap(buffer.toByteArray()), encoding, ctype, path.toString()));
         }
-        ProtocolOutput pout = new ProtocolOutput(response.getContent(), null, ContentType.Unknown, path.toString());
+        ProtocolOutput pout = new ProtocolOutput(ByteBuffer.allocate(0), null, ContentType.Unknown, path.toString());
         switch (code) {
             case 300:
                 return new ProtocolResponse(new ProtocolStatus("Multiple Choices", ProtocolStatus.Type.UnknownState), pout);
@@ -103,11 +118,11 @@ public class HttpFetcher extends ProtocolFetcher {
             case 302:
             case 303:
             case 307:
-                String refrUrl = response.getHeader("refresh");
-                if (refrUrl == null) {
+                Header refrUrlHeader = response.getFirstHeader("Location");
+                if (refrUrlHeader == null) {
                     return new ProtocolResponse(new ProtocolStatus("Moved temporaly", ProtocolStatus.Type.Moved), pout);
                 }
-                return handleRedirect(pout, path, refrUrl, depth, maxDepth);
+                return handleRedirect(pout, path, refrUrlHeader.getValue(), depth, maxDepth);
             case 304:
                 return new ProtocolResponse(new ProtocolStatus("Not modified", ProtocolStatus.Type.NotModified), pout);
             case 400:
@@ -129,27 +144,48 @@ public class HttpFetcher extends ProtocolFetcher {
 
     }
 
-    protected HttpResponse getResponse(String url) throws IOException {
-        GetMethod get = null;
+    protected HttpResponse getResponse(String url, ByteArrayOutputStream content) throws IOException, SocketTimeoutException {
+        HttpGet get = null;
         try {
-            get = new GetMethod(url);
-            get.getParams().setParameter(HttpMethodParams.RETRY_HANDLER,
-                    new DefaultHttpMethodRetryHandler(3, false));
-            int code = client.executeMethod(get);
-            Map<String, String> headers = new HashMap<>();
-            for (Header head : get.getResponseHeaders()) {
-                if (head == null || head.getName() == null || head.getValue() == null) {
-                    continue;
-                }
-                headers.put(head.getName().trim().toLowerCase(), head.getValue().trim().toLowerCase());
-            }
-            ByteBuffer content = StreamUtil.streamToByteBuffer(get.getResponseBodyAsStream());
-            return new HttpResponse(code, content, get.getStatusText(), headers);
+            get = new HttpGet(url);
+            HttpContext context = new BasicHttpContext();
+            HttpResponse resp = client.execute(get, context);
+            resp.getEntity().writeTo(content);
+            get.releaseConnection();
+            return resp;
         } finally {
             if (get != null && !get.isAborted()) {
                 get.abort();
             }
         }
+    }
+
+    protected HttpResponse getResponse_v2(String url, ByteArrayOutputStream content) throws IOException, HttpException {
+        HttpProcessor httpproc = HttpProcessorBuilder.create()
+                .add(new RequestContent())
+                .add(new RequestTargetHost())
+                .add(new RequestConnControl())
+                .add(new RequestUserAgent("Test/1.1"))
+                .add(new RequestExpectContinue(true)).build();
+        URL u = new URL(url);
+        HttpRequestExecutor executor = new HttpRequestExecutor();
+        HttpCoreContext coreContext = HttpCoreContext.create();
+        coreContext.setTargetHost(new HttpHost(u.getHost(), 80));
+        DefaultBHttpClientConnection conn = new DefaultBHttpClientConnection(2048);
+        Socket socket = new Socket(u.getHost(), 80);
+        conn.bind(socket);
+        String path = u.getPath();
+        if (path.isEmpty()) {
+            path = "/";
+        }
+        BasicHttpRequest req = new BasicHttpRequest("GET", path);
+        executor.preProcess(req, httpproc, coreContext);
+        HttpResponse resp = executor.execute(req, conn, coreContext);
+        executor.postProcess(resp, httpproc, coreContext);
+
+        resp.getEntity().writeTo(content);
+        conn.close();
+        return resp;
     }
 
     private ProtocolResponse handleRedirect(ProtocolOutput pout, String path, String newPath, int depth, int maxDepth) throws ProtocolException {
@@ -165,9 +201,12 @@ public class HttpFetcher extends ProtocolFetcher {
         }
     }
 
-    private Map<String, String> parseType(String text) {
+    private Map<String, String> parseType(Header header) {
         Map<String, String> parameters = new HashMap<>();
-        String[] params = text.split(";");
+        if (header == null) {
+            return parameters;
+        }
+        String[] params = header.getValue().split(";");
         String contentType = params[0].trim();
         for (int i = 1; i < params.length; ++i) {
             String[] vals = params[i].split("=");
@@ -177,17 +216,10 @@ public class HttpFetcher extends ProtocolFetcher {
         return parameters;
     }
 
-    public static void main(String[] args) throws UnsupportedEncodingException {
-        try {
-            CrawlerConfig crawlerConfig = new CrawlerConfig(System.getProperties());
-            ProtocolFetcher.build(crawlerConfig);
-            ProtocolFetcher httpFetcher = ProtocolFetcher.getFetcher(ProtocolType.Http);
-            String url = "http://google.com";
-            ProtocolResponse resp = httpFetcher.fetch(url);
-            System.out.println(resp.getProtocolOutput().getEncoding());
-        } catch (ProtocolException ex) {
-            System.out.println(ex.getLocalizedMessage());
-        }
+    public static void main(String[] args) throws UnsupportedEncodingException, IOException, ProtocolException {
+        String url = "http://en.wikipedia.org/";
+        ProtocolResponse resp = HttpFetcher.init(new CrawlerConfig()).fetch(url);
+        System.out.println(resp.getStatusState());
     }
 
 }

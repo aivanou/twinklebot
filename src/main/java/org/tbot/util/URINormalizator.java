@@ -4,7 +4,7 @@
  */
 package org.tbot.util;
 
-import org.tbot.loggin.LoggerCreator;
+import org.tbot.log.LoggerCreator;
 import java.io.UnsupportedEncodingException;
 import java.net.*;
 import java.util.ArrayList;

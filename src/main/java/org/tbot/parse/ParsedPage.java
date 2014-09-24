@@ -1,8 +1,8 @@
 package org.tbot.parse;
 
+import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
-import org.tbot.objects.Domain;
 import org.tbot.objects.Link;
 
 /**
@@ -12,13 +12,14 @@ public class ParsedPage {
 
     private final String htmlPage;
     private final Map<String, String> parsedContent;
-    private final Set<Link> links;
+    private final Collection<Link> inLinks, outLinks;
     private final String url;
 
-    public ParsedPage(String htmlPage, Map<String, String> parsedContent, Set<Link> links, String url) {
+    public ParsedPage(String htmlPage, Map<String, String> parsedContent, Collection<Link> inLinks, Collection<Link> outLinks, String url) {
         this.htmlPage = htmlPage;
         this.parsedContent = parsedContent;
-        this.links = links;
+        this.inLinks = inLinks;
+        this.outLinks = outLinks;
         this.url = url;
     }
 
@@ -30,8 +31,12 @@ public class ParsedPage {
         return parsedContent;
     }
 
-    public Set<Link> getLinks() {
-        return links;
+    public Collection<Link> getInLinks() {
+        return inLinks;
+    }
+
+    public Collection<Link> getOutLinks() {
+        return outLinks;
     }
 
     public String getUrl() {

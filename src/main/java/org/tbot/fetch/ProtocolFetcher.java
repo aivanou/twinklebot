@@ -1,5 +1,6 @@
 package org.tbot.fetch;
 
+import org.tbot.fetch.ftp.FtpUrlFetcher;
 import org.tbot.fetch.http.HttpFetcher;
 import org.tbot.conf.CrawlerConfig;
 import java.util.EnumMap;

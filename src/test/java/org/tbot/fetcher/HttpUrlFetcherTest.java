@@ -44,8 +44,18 @@ public class HttpUrlFetcherTest {
     @Test
     public void testUnknownProtocol() {
         try {
-            ProtocolResponse resp = httpFetcher.fetch("11http://unknownhostwithoutdomain");
-            Assert.assertEquals(resp.getStatusState().getState(), ProtocolStatus.Type.UnknownProtocol);
+            ProtocolResponse resp = httpFetcher.fetch("http://unknownhostwithoutdomain");
+            Assert.assertEquals(resp.getStatusState().getState(), ProtocolStatus.Type.UnknownHost);
+        } catch (ProtocolException ex) {
+            Assert.fail(ex.getLocalizedMessage());
+        }
+    }
+
+    @Test
+    public void testNotFound() {
+        try {
+            ProtocolResponse resp = httpFetcher.fetch("http://en.wikipedia.org/unexistingpagwi-thoutanydata123");
+            Assert.assertEquals(resp.getStatusState().getState(), ProtocolStatus.Type.NotFound);
         } catch (ProtocolException ex) {
             Assert.fail(ex.getLocalizedMessage());
         }

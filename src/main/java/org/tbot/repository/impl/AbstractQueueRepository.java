@@ -27,49 +27,10 @@ public abstract class AbstractQueueRepository<T> implements QueueRepository<T> {
     }
 
     @Override
-    public Collection<T> getNext(int amount) {
-        List<T> domains = new ArrayList<>();
-        synchronized (lock) {
-            for (int i = 0; i < amount; ++i) {
-                T d = getNextElement();
-                if (d == null) {
-                    return domains;
-                }
-                domains.add(d);
-            }
-        }
-        return domains;
-    }
-
-    @Override
     public boolean insert(T object) {
         synchronized (lock) {
             return insertElement(object);
         }
-    }
-
-    @Override
-    public void batchInsert(Collection<T> objects) {
-        synchronized (lock) {
-            for (T domain : objects) {
-                insertElement(domain);
-            }
-        }
-    }
-
-    @Override
-    public void delayedInsert(T object) {
-        insert(object);
-    }
-
-    @Override
-    public T get(String id) {
-        return getNext();
-    }
-
-    @Override
-    public Collection<T> get(Collection<String> ids) {
-        return getNext(ids.size());
     }
 
 }

@@ -1,10 +1,7 @@
 package org.tbot.repository.impl;
 
 import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Queue;
 import java.util.Set;
 import org.tbot.repository.QueueRepository;
@@ -41,6 +38,11 @@ public class MemorySetRepository<T> extends AbstractQueueRepository<T> implement
             domainsInCache.add(object.hashCode());
         }
         return isInserted;
+    }
+
+    @Override
+    public int size() {
+        return cache.size();
     }
 
 }

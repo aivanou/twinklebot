@@ -1,6 +1,6 @@
 package org.tbot.validation;
 
-import org.tbot.loggin.LoggerCreator;
+import org.tbot.log.LoggerCreator;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.log4j.Logger;
